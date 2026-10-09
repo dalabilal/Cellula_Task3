@@ -91,9 +91,7 @@ What each file is for:
 
 **1. Get the code**
 ```bash
-git clone <PUT-YOUR-REPO-LINK-HERE>
-cd <repo-name>/Task1
-```
+git clone https://github.com/dalabilal/Cellula_Task3/
 
 **2. Create the virtual environment (venv)**
 
@@ -116,19 +114,12 @@ If you want to run the notebook too, install these extra packages:
 pip install pypdf beautifulsoup4 ipykernel
 ```
 
-**4. Add the API key**
-
-Create a file named `.env` inside `Task1/` with this line (the key is from [OpenRouter](https://openrouter.ai)):
-```
-OPENAI_API_KEY=your-key-here
-```
-
-**5. Build the vector database (notebook)**
+**4. Build the vector database (notebook)**
 
 Open `RAG_personal_knowledge_base.ipynb`, choose the `.venv` kernel, and run the cells from top to bottom. Put the files in the `data/` folder first. This creates the `faiss_index/` folder.
 If you didn't change any data, you can skip this step because `faiss_index/` is already in the repo.
 
-**6. Run the app**
+**5. Run the app**
 ```bash
 streamlit run app.py
 ```
