@@ -11,6 +11,9 @@ from langchain_core.prompts import PromptTemplate
 
 load_dotenv()
 
+# the folder where app.py is (so the app finds faiss_index even if it runs from another folder)
+app_folder = os.path.dirname(os.path.abspath(__file__))
+
 # api key : from streamlit secrets (when deployed) or from .env (on my laptop)
 try:
     api_key = st.secrets["OPENAI_API_KEY"]
@@ -18,6 +21,9 @@ except Exception:
     api_key = os.getenv("OPENAI_API_KEY")
 
 
+# the model : "openrouter/free" picks a random free model every time (some of them are safety models)
+# better to write one specific model from https://openrouter.ai/models?pricing=free  (example: "xxx/xxx:free")
+model_name = "openrouter/free"
 
 
 # load everything one time only (so the app is fast)
@@ -30,7 +36,7 @@ def load_everything():
     )
 
     vectorDB = FAISS.load_local(
-        "faiss_index",
+        os.path.join(app_folder, "faiss_index"),
         embeddings,
         allow_dangerous_deserialization=True
     )
@@ -38,7 +44,7 @@ def load_everything():
     llm = ChatOpenAI(
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
-        model="openrouter/free",
+        model=model_name,
         temperature=0
     )
 
@@ -76,15 +82,16 @@ suggested_questions = [
     "What is Dalah's education?",
     "Did Dalah participate in the AI Hackathon U-TEACH LEAGUE?",
     "What is the toxic content classification project about?",
-    "What is Dalah's Olist Delivery Delay Prediction project about?",
+    "What is Dalah's capstone project?",
     "Where has Dalah worked or interned?",
 ]
 
 
 # save every question in a csv file
 def save_question(question, found):
-    new_file = not os.path.exists("questions_log.csv")
-    with open("questions_log.csv", "a", newline="", encoding="utf-8") as f:
+    log_file = os.path.join(app_folder, "questions_log.csv")
+    new_file = not os.path.exists(log_file)
+    with open(log_file, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         if new_file:
             writer.writerow(["time", "question", "found_answer"])
@@ -134,8 +141,6 @@ st.sidebar.button("Clear conversation", on_click=clear_chat)
 
 
 # the page
-
-
 st.title("Ask me about Dalah")
 st.write("Type a question and the answer will appear below. You can also ask follow-up questions.")
 
@@ -146,9 +151,12 @@ for n, q in enumerate(suggested_questions):
 query = st.text_input("Your question", key="query")
 
 if query:
+
+    # new question : search + ask the model (not when the page just reruns)
     if query != st.session_state.last_saved:
         with st.spinner("thinking..."):
 
+            # for follow-up questions : add the last question to the search
             search_text = query
             if st.session_state.last_saved != "":
                 search_text = st.session_state.last_saved + " " + query
@@ -159,6 +167,7 @@ if query:
             sources = []
 
             for i in similar_docs:
+                # keep only the chunks that are close to the question
                 if i[1] < 1.4:
                     context.append("[source: " + i[0].metadata["source"] + "]\n" + i[0].page_content)
                     sources.append(i[0].metadata["source"])
@@ -166,6 +175,7 @@ if query:
             if len(context) == 0:
                 response = "I couldn't find that in my sources"
             else:
+                # the memory buffer : the previous questions and answers
                 history_text = st.session_state.memory.load_memory_variables({})["history"]
 
                 prompt = temp.format(
@@ -174,6 +184,8 @@ if query:
                     Question=query
                 )
 
+                # sometimes the router gives a safety model, its answer is not a real answer
+                # so we ask again (3 times maximum)
                 for attempt in range(3):
                     response = llm.invoke(prompt).content
                     if "Safety Categories" not in response and "User Safety" not in response:
@@ -181,6 +193,7 @@ if query:
                 else:
                     response = "Sorry, the model did not give an answer. Please ask again."
 
+        # save the question and the answer one time only
         save_question(query, len(context) > 0)
         st.session_state.memory.save_context({"input": query}, {"output": response})
         st.session_state.last_saved = query
