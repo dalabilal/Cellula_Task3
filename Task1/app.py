@@ -21,8 +21,6 @@ except Exception:
     api_key = os.getenv("OPENAI_API_KEY")
 
 
-# the model : "openrouter/free" picks a random free model every time (some of them are safety models)
-# better to write one specific model from https://openrouter.ai/models?pricing=free  (example: "xxx/xxx:free")
 model_name = "openrouter/free"
 
 
@@ -82,7 +80,7 @@ suggested_questions = [
     "What is Dalah's education?",
     "Did Dalah participate in the AI Hackathon U-TEACH LEAGUE?",
     "What is the toxic content classification project about?",
-    "What is Dalah's capstone project?",
+    "What is Dalah's Olist Delivery Delay Prediction?",
     "Where has Dalah worked or interned?",
 ]
 
@@ -152,11 +150,9 @@ query = st.text_input("Your question", key="query")
 
 if query:
 
-    # new question : search + ask the model (not when the page just reruns)
     if query != st.session_state.last_saved:
         with st.spinner("thinking..."):
 
-            # for follow-up questions : add the last question to the search
             search_text = query
             if st.session_state.last_saved != "":
                 search_text = st.session_state.last_saved + " " + query
@@ -167,7 +163,6 @@ if query:
             sources = []
 
             for i in similar_docs:
-                # keep only the chunks that are close to the question
                 if i[1] < 1.4:
                     context.append("[source: " + i[0].metadata["source"] + "]\n" + i[0].page_content)
                     sources.append(i[0].metadata["source"])
@@ -175,7 +170,6 @@ if query:
             if len(context) == 0:
                 response = "I couldn't find that in my sources"
             else:
-                # the memory buffer : the previous questions and answers
                 history_text = st.session_state.memory.load_memory_variables({})["history"]
 
                 prompt = temp.format(
@@ -184,8 +178,6 @@ if query:
                     Question=query
                 )
 
-                # sometimes the router gives a safety model, its answer is not a real answer
-                # so we ask again (3 times maximum)
                 for attempt in range(3):
                     response = llm.invoke(prompt).content
                     if "Safety Categories" not in response and "User Safety" not in response:
@@ -193,7 +185,6 @@ if query:
                 else:
                     response = "Sorry, the model did not give an answer. Please ask again."
 
-        # save the question and the answer one time only
         save_question(query, len(context) > 0)
         st.session_state.memory.save_context({"input": query}, {"output": response})
         st.session_state.last_saved = query
